@@ -98,7 +98,7 @@ func (i *InstanceGroup) Increase(ctx context.Context, delta int) (int, error) {
 			Entities: &compute.ServerEntities{
 				Volumes: &compute.AttachedVolumes{
 					Items: &[]compute.Volume{
-						compute.Volume{
+						{
 							Properties: &compute.VolumeProperties{
 								Image:    &i.ServerSpec.Image,
 								SshKeys:  &keys,
