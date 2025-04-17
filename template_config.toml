@@ -1,0 +1,34 @@
+[[runners]]
+  name = "ionos test fleeting plugin"
+  url = "https://gitlab.codecentric.de"
+  token = "<TOKEN>"
+  shell = "sh"
+
+executor = "instance"
+
+[runners.autoscaler]
+  plugin = "fleeting-plugin-ionos"
+  max_instances = 1
+
+[runners.autoscaler.plugin_config]
+  datacenter_id = "<DATACENTER_ID>"
+
+[runners.autoscaler.connector_config]
+  username = "root"
+  key_path = "/etc/gitlab-runner/keys/key" 
+
+[runners.autoscaler.plugin_config.server_spec]
+  # alma linux
+  image = "1913dbd9-d182-11ef-a3a5-82d23567f08d"
+  # 1 cpu 2 GB
+  template = "72e73b81-8551-4e74-b398-fc63b39994af"
+  user_data = '''#cloud-config
+write_files:
+  - path: /tmp/userdata_test.txt
+    content: |
+      This file was created using cloud-init user data.
+      The instance booted successfully, and cloud-init ran.
+runcmd:
+  - [ "echo", "Hello from user data!", ">", "/tmp/hello.txt" ]
+  - [ "touch", "/tmp/user_data_ran" ]
+'''
