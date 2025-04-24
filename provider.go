@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"path"
-
-	"golang.org/x/crypto/ssh"
+	"strings"
+	"sync/atomic"
 
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/ionos-cloud/sdk-go-bundle/products/compute"
@@ -30,9 +30,9 @@ type InstanceGroup struct {
 	DatacenterId    string        `json:"datacenter_id"`
 	ServerSpec      ExtCreateOpts `json:"server_spec"`
 
-	log           hclog.Logger
-	computeClient compute.APIClient
-	size          int
+	log             hclog.Logger
+	computeClient   compute.APIClient
+	instanceCounter atomic.Int32
 
 	settings provider.Settings
 }
@@ -45,11 +45,6 @@ func (i *InstanceGroup) Init(ctx context.Context, logger hclog.Logger, settings 
 	i.computeClient = *computeClient
 	i.settings = settings
 	i.log = logger
-
-	_, err := ssh.ParseRawPrivateKey(settings.Key)
-	if err != nil {
-		return provider.ProviderInfo{}, err
-	}
 
 	return provider.ProviderInfo{
 		ID:        path.Join("ionos", i.Name),
@@ -73,27 +68,16 @@ type PrivPub interface {
 
 // Increase implements provider.InstanceGroup.
 func (i *InstanceGroup) Increase(ctx context.Context, delta int) (int, error) {
-	key, err := ssh.ParseRawPrivateKey(i.settings.Key)
-	if err != nil {
-		return 0, err
-	}
-	privKey, ok := key.(PrivPub)
-
-	if !ok {
-		return 0, fmt.Errorf("key doesn't export PublicKey()")
-	}
-	sshPubKey, err := ssh.NewPublicKey(privKey.Public())
-
-	keys := []string{
-		string(ssh.MarshalAuthorizedKey(sshPubKey)),
-	}
 	succeeded := 0
 	userdata := base64.StdEncoding.EncodeToString([]byte(i.ServerSpec.UserData))
+	var err error
 	for range delta {
 
 		var lanId int32
 
 		lanId = 1
+		index := int(i.instanceCounter.Add(1))
+
 		server, _, err2 := i.computeClient.ServersApi.DatacentersServersPost(ctx, i.DatacenterId).Server(compute.Server{
 			Entities: &compute.ServerEntities{
 				Volumes: &compute.AttachedVolumes{
@@ -101,7 +85,6 @@ func (i *InstanceGroup) Increase(ctx context.Context, delta int) (int, error) {
 						{
 							Properties: &compute.VolumeProperties{
 								Image:    &i.ServerSpec.Image,
-								SshKeys:  &keys,
 								Type:     StrPtr("DAS"),
 								UserData: &userdata,
 							},
@@ -121,6 +104,7 @@ func (i *InstanceGroup) Increase(ctx context.Context, delta int) (int, error) {
 			},
 			Properties: &compute.ServerProperties{
 				Type:         StrPtr("CUBE"),
+				Name:         StrPtr(fmt.Sprintf("gitlab-runner-cluster-%d", index)),
 				TemplateUuid: &i.ServerSpec.Template,
 			},
 		}).Execute()
@@ -172,13 +156,16 @@ func (i *InstanceGroup) ConnectInfo(ctx context.Context, instance string) (provi
 
 // Update implements provider.InstanceGroup.
 func (i *InstanceGroup) Update(ctx context.Context, fn func(instance string, state provider.State)) error {
-	instances, err := i.getInstances(ctx)
+	instances, _, err := i.computeClient.ServersApi.DatacentersServersGet(ctx, i.DatacenterId).Depth(2).Execute()
 	if err != nil {
 		return err
 	}
-	for _, instance := range instances {
+	for _, instance := range *instances.Items {
 		state := *instance.Metadata.State
 
+		if !strings.HasPrefix(*instance.Properties.Name, "gitlab-runner-cluster") {
+			continue
+		}
 		// *AVAILABLE* There are no pending modification requests for this item;
 		// *BUSY* There is at least one modification request pending and all following requests will be queued;
 		// *INACTIVE* Resource has been de-provisioned;
@@ -197,7 +184,7 @@ func (i *InstanceGroup) Update(ctx context.Context, fn func(instance string, sta
 		case "AVAILABLE":
 			fn(*instance.Id, provider.StateRunning)
 		case "BUSY":
-			fn(*instance.Id, provider.StateDeleting)
+			fn(*instance.Id, provider.StateCreating)
 		case "INACTIVE":
 			fn(*instance.Id, provider.StateDeleting)
 
@@ -234,14 +221,4 @@ func (i *InstanceGroup) Decrease(ctx context.Context, instances []string) ([]str
 // Shutdown implements provider.InstanceGroup.
 func (i *InstanceGroup) Shutdown(ctx context.Context) error {
 	return nil
-}
-
-// Helper function not required by the interface
-func (i *InstanceGroup) getInstances(ctx context.Context) ([]compute.Server, error) {
-	servers, _, err := i.computeClient.ServersApi.DatacentersServersGet(ctx, i.DatacenterId).Depth(2).Execute()
-	if err != nil {
-		return nil, err
-	}
-	// Need filter to not return the bastion vm if the bastian vm runs in the same datacenter
-	return *servers.Items, nil
 }
