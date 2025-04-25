@@ -17,8 +17,11 @@ import (
 )
 
 type ExtCreateOpts struct {
+	// The user data currently needs to add the ssh key to the user cause the api does not allow to add a ssh key to a private image...
 	UserData string `json:"user_data,omitempty"`
-	Image    string `json:"image,omitempty"`
+	// cherry on top: would be nice if you could pass the name of the image instead of the id
+	Image string `json:"image,omitempty"`
+	// cherry on top: would be nice if you could pass the name of the template instead of the id
 	Template string `json:"template,omitempty"`
 }
 
@@ -48,7 +51,7 @@ func (i *InstanceGroup) Init(ctx context.Context, logger hclog.Logger, settings 
 
 	return provider.ProviderInfo{
 		ID:        path.Join("ionos", i.Name),
-		MaxSize:   10,
+		MaxSize:   1000,
 		Version:   Version.String(),
 		BuildInfo: Version.BuildInfo(),
 	}, nil
@@ -73,12 +76,13 @@ func (i *InstanceGroup) Increase(ctx context.Context, delta int) (int, error) {
 	var err error
 	for range delta {
 
+		// TODO: Make Lan ID configurable
 		var lanId int32
-
 		lanId = 1
 		index := int(i.instanceCounter.Add(1))
 
 		server, _, err2 := i.computeClient.ServersApi.DatacentersServersPost(ctx, i.DatacenterId).Server(compute.Server{
+			// TODO: Make server configurable
 			Entities: &compute.ServerEntities{
 				Volumes: &compute.AttachedVolumes{
 					Items: &[]compute.Volume{
@@ -103,6 +107,7 @@ func (i *InstanceGroup) Increase(ctx context.Context, delta int) (int, error) {
 				},
 			},
 			Properties: &compute.ServerProperties{
+				// TODO: Make type, and name configurable
 				Type:         StrPtr("CUBE"),
 				Name:         StrPtr(fmt.Sprintf("gitlab-runner-cluster-%d", index)),
 				TemplateUuid: &i.ServerSpec.Template,
@@ -131,6 +136,7 @@ func (i *InstanceGroup) ConnectInfo(ctx context.Context, instance string) (provi
 	}
 
 	var ip string
+	// TODO: find internal and external ip, not the first ip for both....
 	for _, nic := range *server.Entities.Nics.Items {
 		if len(*nic.Properties.Ips) > 0 {
 			ip = (*nic.Properties.Ips)[0]
@@ -163,26 +169,23 @@ func (i *InstanceGroup) Update(ctx context.Context, fn func(instance string, sta
 	for _, instance := range *instances.Items {
 		state := *instance.Metadata.State
 
+		// TODO: It would be great if we had a better way to identify which
+		// server belong to the gitlab runner...
+		// something like labels on the servers would be nice
 		if !strings.HasPrefix(*instance.Properties.Name, "gitlab-runner-cluster") {
 			continue
 		}
-		// *AVAILABLE* There are no pending modification requests for this item;
-		// *BUSY* There is at least one modification request pending and all following requests will be queued;
-		// *INACTIVE* Resource has been de-provisioned;
 
-		// *DEPLOYING* Resource state DEPLOYING - relevant for Kubernetes cluster/nodepool;
-		// *ACTIVE* Resource state ACTIVE - relevant for Kubernetes cluster/nodepool;
-		// *FAILED* Resource state FAILED - relevant for Kubernetes cluster/nodepool;
-		// *SUSPENDED* Resource state SUSPENDED - relevant for Kubernetes cluster/nodepool;
-		// *FAILED_SUSPENDED* Resource state FAILED_SUSPENDED - relevant for Kubernetes cluster;
-		// *UPDATING* Resource state UPDATING - relevant for Kubernetes cluster/nodepool;
-		// *FAILED_UPDATING* Resource state FAILED_UPDATING - relevant for Kubernetes cluster/nodepool;
-		// *DESTROYING* Resource state DESTROYING - relevant for Kubernetes cluster;
-		// *FAILED_DESTROYING* Resource state FAILED_DESTROYING - relevant for Kubernetes cluster/nodepool;
-		// *TERMINATED* Resource state TERMINATED - relevant for Kubernetes cluster/nodepool.
 		switch state {
 		case "AVAILABLE":
 			fn(*instance.Id, provider.StateRunning)
+		// TODO: is there a better way to know if a server is created or destroyed
+		// These are the Gitlab Plugin states for servers...
+		// StateCreating State = "creating"
+		// StateRunning  State = "running"
+		// StateDeleting State = "deleting"
+		// StateDeleted  State = "deleted"
+		// StateTimeout  State = "timeout"
 		case "BUSY":
 			fn(*instance.Id, provider.StateCreating)
 		case "INACTIVE":
