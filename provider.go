@@ -10,7 +10,6 @@ import (
 	"github.com/ionos-cloud/sdk-go-bundle/products/compute"
 	"github.com/ionos-cloud/sdk-go-bundle/shared"
 	"gitlab.com/gitlab-org/fleeting/fleeting/provider"
-	"golang.org/x/crypto/ssh"
 	"path"
 	"slices"
 	"strings"
@@ -20,7 +19,6 @@ import (
 type ServerSpec struct {
 	// The user data currently needs to add the ssh key to the user cause the api does not allow to add a ssh key to a private image...
 	// cherry on top: would be nice if you could pass the name of the image instead of the id -- this is not possible, the name of the image is not unique
-	// cherry on top: would be nice if you could pass the name of the template instead of the id
 	Cores        int32   `json:"cores"`
 	Image        string  `json:"image,omitempty"`
 	Name         string  `json:"name"`
@@ -90,17 +88,19 @@ func (i *InstanceGroup) Increase(ctx context.Context, delta int) (int, error) {
 		return 0, fmt.Errorf("validating required config: %w", err)
 	}
 
+	if i.ServerSpec.Type == "CUBE" {
+		if i.ServerSpec.TemplateName != "" {
+			i.ServerSpec.TemplateID, err = i.getTemplateID(i.ServerSpec.TemplateName)
+			if err != nil {
+				return 0, fmt.Errorf("getting template id from template name: %w", err)
+			}
+		}
+	}
+
 	succeeded := 0
 	for range delta {
 		index := int(i.instanceCounter.Add(1))
-		var serverData compute.Server
-
-		// TODO: The error check needs to be removed after SSH logic from readServerData is removed
-		serverData, err = i.readServerData(index)
-		if err != nil {
-			return succeeded, fmt.Errorf("reading server data: %w", err)
-		}
-
+		serverData := i.readServerData(index)
 		server, _, err2 := i.computeClient.ServersApi.DatacentersServersPost(ctx, i.DatacenterId).Server(serverData).Execute()
 		if err2 != nil {
 			i.log.Error("Failed to create instance", "err", err2)
@@ -216,8 +216,8 @@ func (i *InstanceGroup) validateConfig() error {
 	if i.ServerSpec.Type == "" || i.ServerSpec.Name == "" {
 		return fmt.Errorf("type, name are required")
 	}
-	if i.ServerSpec.PublicLANID == 0 || i.ServerSpec.PrivateLANID == 0 || i.ServerSpec.UserData == "" || i.ServerSpec.VolumeType == "" {
-		return fmt.Errorf("public_lan_id, private_lan_id, user_data, volume_type are required")
+	if i.ServerSpec.PrivateLANID == 0 || i.ServerSpec.UserData == "" || i.ServerSpec.VolumeType == "" {
+		return fmt.Errorf("private_lan_id, user_data, volume_type are required")
 	}
 
 	// Validate type
@@ -242,32 +242,21 @@ func (i *InstanceGroup) validateConfig() error {
 	return nil
 }
 
-func (i *InstanceGroup) readServerData(index int) (compute.Server, error) {
+func (i *InstanceGroup) readServerData(index int) compute.Server {
 	var serverData compute.Server
-	// err is used for SSH and err2 for other validations, err will be removed when SSH logic will
-	// be removed.
 	var cores, ram *int32
-	var err2 error
 	var storageSize *float32
 	var templateID *string
 
-	connectInfo := provider.ConnectInfo{ConnectorConfig: i.settings.ConnectorConfig}
 	name := i.ServerSpec.Name
 	privateLANID := i.ServerSpec.PrivateLANID
-	publicLANID := i.ServerSpec.PublicLANID
+	//publicLANID := i.ServerSpec.PublicLANID
 	serverType := i.ServerSpec.Type
 	userdata := base64.StdEncoding.EncodeToString([]byte(i.ServerSpec.UserData))
 	volumeType := i.ServerSpec.VolumeType
 
 	if serverType == "CUBE" {
-		if i.ServerSpec.TemplateID != "" {
-			templateID = &i.ServerSpec.TemplateID
-		} else {
-			templateID, err2 = i.getTemplateID(i.ServerSpec.TemplateName)
-			if err2 != nil {
-				return serverData, err2
-			}
-		}
+		templateID = &i.ServerSpec.TemplateID
 	}
 
 	if serverType == "ENTERPRISE" {
@@ -276,28 +265,8 @@ func (i *InstanceGroup) readServerData(index int) (compute.Server, error) {
 		storageSize = &i.ServerSpec.StorageSize
 	}
 
-	// TODO -- The SSH logic should not be inside this method but it will be deleted anyway.
-	if connectInfo.Key == nil {
-		return serverData, fmt.Errorf("no private key")
-	}
-	var key PrivPub
-	// Private key logic
-	privateKey, err := ssh.ParseRawPrivateKey(connectInfo.Key)
-	if err != nil {
-		return serverData, fmt.Errorf("reading private key: %w", err)
-	}
-	var ok bool
-	key, ok = privateKey.(PrivPub)
-	if !ok {
-		return serverData, fmt.Errorf("key doesn't export PublicKey()")
-	}
-	// Public key logic
-	publicKey, err := ssh.NewPublicKey(key.Public())
-	if err != nil {
-		return serverData, fmt.Errorf("generating ssh public key: %w", err)
-	}
-	publicKeyStr := string(ssh.MarshalAuthorizedKey(publicKey))
-	sshKeys := []string{publicKeyStr}
+	// TODO -- Remove this, this is used only because it's required for public images
+	imagePassword := "randompassword123"
 
 	serverData = compute.Server{
 		Entities: &compute.ServerEntities{
@@ -305,24 +274,24 @@ func (i *InstanceGroup) readServerData(index int) (compute.Server, error) {
 				Items: &[]compute.Volume{
 					{
 						Properties: &compute.VolumeProperties{
-							Image:    &i.ServerSpec.Image,
-							Type:     &volumeType,
-							UserData: &userdata,
-							Size:     storageSize,
-							SshKeys:  &sshKeys,
+							Image:         &i.ServerSpec.Image,
+							Type:          &volumeType,
+							UserData:      &userdata,
+							Size:          storageSize,
+							ImagePassword: &imagePassword,
 						},
 					},
 				},
 			},
 			Nics: &compute.Nics{
 				Items: &[]compute.Nic{
-					{
-						Properties: &compute.NicProperties{
-							Name:           StrPtr("publicNIC"),
-							Lan:            &publicLANID,
-							FirewallActive: BoolPtr(false),
-						},
-					},
+					//{
+					//	Properties: &compute.NicProperties{
+					//		Name:           StrPtr("publicNIC"),
+					//		Lan:            &publicLANID,
+					//		FirewallActive: BoolPtr(false),
+					//	},
+					//},
 					{
 						Properties: &compute.NicProperties{
 							Name:           StrPtr("privateNIC"),
@@ -341,19 +310,18 @@ func (i *InstanceGroup) readServerData(index int) (compute.Server, error) {
 			Type:         &serverType,
 		},
 	}
-	return serverData, nil
+	return serverData
 }
 
-// TODO -- Call this function at the beginning of 'Increase' method, not in the foor loop
-func (i *InstanceGroup) getTemplateID(templateName string) (*string, error) {
+func (i *InstanceGroup) getTemplateID(templateName string) (string, error) {
 	templates, _, err := i.computeClient.TemplatesApi.TemplatesGet(context.Background()).Depth(1).Execute()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	for _, template := range *templates.Items {
 		if *template.Properties.Name == templateName {
-			return template.Id, nil
+			return *template.Id, nil
 		}
 	}
-	return nil, fmt.Errorf("template %s not found", templateName)
+	return "", fmt.Errorf("template %s not found", templateName)
 }
