@@ -8,20 +8,39 @@ executor = "instance"
 
 [runners.autoscaler]
   plugin = "fleeting-plugin-ionos"
-  max_instances = 1
+  max_instances = 5
+  capacity_per_instance = 1
 
 [runners.autoscaler.plugin_config]
   datacenter_id = "<DATACENTER_ID>"
 
 [runners.autoscaler.connector_config]
   username = "root"
-  key_path = "/etc/gitlab-runner/keys/key" 
+  key_path = "/etc/gitlab-runner/keys/key"
+  os = "linux"
+  arch = "x86"
+  use_external_addr = true
+  protocol = "ssh"
+  protocol_port = 22
+
+[[runners.autoscaler.policy]]
+  # A nice configuration for plugin developing
+  idle_count = 1 # always have 1 VM available for jobs / keep a VM up all the time.
+  idle_time = "0m" # any extra VMs will be removed after the job is done, the waiting/idle time will be 0 minutes.
 
 [runners.autoscaler.plugin_config.server_spec]
-  # alma linux
+  # Server Spec
+  # Alma Linux
   image = "1913dbd9-d182-11ef-a3a5-82d23567f08d"
-  # 1 cpu 2 GB
-  template = "72e73b81-8551-4e74-b398-fc63b39994af"
+
+  # Required
+  name = "gitlab-runner-cluster"
+  type = "CUBE"
+  # type = "ENTERPRISE"
+  volume_type = "DAS" # For 'CUBE' type
+  # volume_type = "HDD" # For 'ENTERPRISE' type (not the only one that can be used, check the API doc for more values)
+  public_lan_id = <PUBLIC_LAN_ID> # this value is an int, not a str
+  private_lan_id = <PRIVATE_LAN_ID> # this value is an int, not a str
   user_data = '''#cloud-config
 write_files:
   - path: /tmp/userdata_test.txt
@@ -32,3 +51,13 @@ runcmd:
   - [ "echo", "Hello from user data!", ">", "/tmp/hello.txt" ]
   - [ "touch", "/tmp/user_data_ran" ]
 '''
+
+  # For 'CUBE' type - 1 cpu 2 GB
+  # One of template_id/template_name is required for 'CUBE' servers
+  # template_id = "72e73b81-8551-4e74-b398-fc63b39994af"
+  template_name = "Basic Cube XS"
+
+  # For 'ENTERPRISE' type: RAM, cores, storage_size are required
+  # cores = 1
+  # ram = 2048
+  # storage_size = 60
