@@ -21,8 +21,7 @@ type ServerSpec struct {
 	Cores        int32   `json:"cores"`
 	Image        string  `json:"image,omitempty"`
 	Name         string  `json:"name"`
-	PrivateLANID int32   `json:"private_lan_id"`
-	PublicLANID  int32   `json:"public_lan_id"`
+	LanID        int32   `json:"lan_id"`
 	Ram          int32   `json:"ram"`
 	StorageSize  float32 `json:"storage_size"`
 	TemplateID   string  `json:"template_id"`
@@ -82,6 +81,7 @@ func (i *InstanceGroup) Increase(ctx context.Context, delta int) (int, error) {
 		return 0, fmt.Errorf("validating required config: %w", err)
 	}
 
+	// Get template ID based on the provided template name.
 	if i.ServerSpec.Type == "CUBE" {
 		if i.ServerSpec.TemplateName != "" {
 			i.ServerSpec.TemplateID, err = i.getTemplateID(i.ServerSpec.TemplateName)
@@ -94,7 +94,7 @@ func (i *InstanceGroup) Increase(ctx context.Context, delta int) (int, error) {
 	succeeded := 0
 	for range delta {
 		index := int(i.instanceCounter.Add(1))
-		serverData := i.readServerData(index)
+		serverData := i.getPostServerData(index)
 		server, _, err2 := i.computeClient.ServersApi.DatacentersServersPost(ctx, i.DatacenterId).Server(serverData).Execute()
 		if err2 != nil {
 			i.log.Error("Failed to create instance", "err", err2)
@@ -113,34 +113,22 @@ func (i *InstanceGroup) Increase(ctx context.Context, delta int) (int, error) {
 func (i *InstanceGroup) ConnectInfo(ctx context.Context, instance string) (provider.ConnectInfo, error) {
 	server, _, err := i.computeClient.ServersApi.DatacentersServersFindById(ctx, i.DatacenterId, instance).Pretty(true).Depth(2).Execute()
 	if err != nil {
-		return provider.ConnectInfo{}, fmt.Errorf("Failed to get server: %w", err)
+		return provider.ConnectInfo{}, fmt.Errorf("failed to get server with ID: %v, error: %w", instance, err)
 	}
 
 	var internalIP string
-	var externalIP string
 
-	for _, nic := range *server.Entities.Nics.Items {
-		if len(*nic.Properties.Ips) > 0 {
-			if strings.HasPrefix(*nic.Properties.Name, "public") {
-				externalIP = (*nic.Properties.Ips)[0]
-			} else if strings.HasPrefix(*nic.Properties.Name, "private") {
-				internalIP = (*nic.Properties.Ips)[0]
-			}
-		}
-	}
-	if internalIP == "" && externalIP == "" {
-		return provider.ConnectInfo{}, fmt.Errorf("Could not find IPs")
-	}
+	nic := (*server.Entities.Nics.Items)[0]
+	internalIP = (*nic.Properties.Ips)[0]
 
 	state := *server.Metadata.State
 	if state != "AVAILABLE" {
-		return provider.ConnectInfo{}, fmt.Errorf("Server is not in the AVAILABLE State")
+		return provider.ConnectInfo{}, fmt.Errorf("server is not in the AVAILABLE State")
 	}
 
 	connectInfo := provider.ConnectInfo{
 		ConnectorConfig: i.settings.ConnectorConfig,
 		ID:              *server.Id,
-		ExternalAddr:    externalIP,
 		InternalAddr:    internalIP,
 	}
 
@@ -210,8 +198,8 @@ func (i *InstanceGroup) validateConfig() error {
 	if i.ServerSpec.Type == "" || i.ServerSpec.Name == "" {
 		return fmt.Errorf("type, name are required")
 	}
-	if i.ServerSpec.PrivateLANID == 0 || i.ServerSpec.UserData == "" || i.ServerSpec.VolumeType == "" {
-		return fmt.Errorf("private_lan_id, user_data, volume_type are required")
+	if i.ServerSpec.LanID == 0 || i.ServerSpec.UserData == "" || i.ServerSpec.VolumeType == "" {
+		return fmt.Errorf("lan_id, user_data, volume_type are required")
 	}
 
 	// Validate type
@@ -236,22 +224,17 @@ func (i *InstanceGroup) validateConfig() error {
 	return nil
 }
 
-func (i *InstanceGroup) readServerData(index int) compute.Server {
+func (i *InstanceGroup) getPostServerData(index int) compute.Server {
 	var serverData compute.Server
 	var cores, ram *int32
-	var publicLANID *int32
 	var storageSize *float32
 	var templateID *string
 
 	name := i.ServerSpec.Name
-	privateLANID := i.ServerSpec.PrivateLANID
 	serverType := i.ServerSpec.Type
+	lanID := i.ServerSpec.LanID
 	userdata := base64.StdEncoding.EncodeToString([]byte(i.ServerSpec.UserData))
 	volumeType := i.ServerSpec.VolumeType
-
-	if i.ServerSpec.PublicLANID != 0 {
-		publicLANID = &i.ServerSpec.PublicLANID
-	}
 
 	if serverType == "CUBE" {
 		templateID = &i.ServerSpec.TemplateID
@@ -281,15 +264,8 @@ func (i *InstanceGroup) readServerData(index int) compute.Server {
 				Items: &[]compute.Nic{
 					{
 						Properties: &compute.NicProperties{
-							Name:           StrPtr("publicNIC"),
-							Lan:            publicLANID,
-							FirewallActive: BoolPtr(false),
-						},
-					},
-					{
-						Properties: &compute.NicProperties{
 							Name:           StrPtr("privateNIC"),
-							Lan:            &privateLANID,
+							Lan:            &lanID,
 							FirewallActive: BoolPtr(false),
 						},
 					},
