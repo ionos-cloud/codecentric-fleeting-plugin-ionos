@@ -2,7 +2,6 @@ package ionos
 
 import (
 	"context"
-	"crypto"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -74,11 +73,6 @@ func FloatPtr(float float32) *float32 {
 	return &float
 }
 func BoolPtr(boolean bool) *bool { return &boolean }
-
-type PrivPub interface {
-	crypto.PrivateKey
-	Public() crypto.PublicKey
-}
 
 // Increase implements provider.InstanceGroup.
 func (i *InstanceGroup) Increase(ctx context.Context, delta int) (int, error) {
