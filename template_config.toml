@@ -39,7 +39,6 @@ executor = "instance"
   # type = "ENTERPRISE"
   volume_type = "DAS" # For 'CUBE' type
   # volume_type = "HDD" # For 'ENTERPRISE' type (not the only one that can be used, check the API doc for more values)
-  public_lan_id = <PUBLIC_LAN_ID> # this value is an int, not a str
   private_lan_id = <PRIVATE_LAN_ID> # this value is an int, not a str
   user_data = '''#cloud-config
 write_files:
@@ -50,8 +49,12 @@ write_files:
 runcmd:
   - [ "echo", "Hello from user data!", ">", "/tmp/hello.txt" ]
   - [ "touch", "/tmp/user_data_ran" ]
+ssh_authorized_keys:
+  - <PUBLIC_SSH_KEY>
 '''
 
+  # Optional
+  # public_lan_id = <PUBLIC_LAN_ID> # this value is an int, not a str
   # For 'CUBE' type - 1 cpu 2 GB
   # One of template_id/template_name is required for 'CUBE' servers
   # template_id = "72e73b81-8551-4e74-b398-fc63b39994af"

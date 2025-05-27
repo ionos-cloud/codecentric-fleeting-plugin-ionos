@@ -245,15 +245,19 @@ func (i *InstanceGroup) validateConfig() error {
 func (i *InstanceGroup) readServerData(index int) compute.Server {
 	var serverData compute.Server
 	var cores, ram *int32
+	var publicLANID *int32
 	var storageSize *float32
 	var templateID *string
 
 	name := i.ServerSpec.Name
 	privateLANID := i.ServerSpec.PrivateLANID
-	//publicLANID := i.ServerSpec.PublicLANID
 	serverType := i.ServerSpec.Type
 	userdata := base64.StdEncoding.EncodeToString([]byte(i.ServerSpec.UserData))
 	volumeType := i.ServerSpec.VolumeType
+
+	if i.ServerSpec.PublicLANID != 0 {
+		publicLANID = &i.ServerSpec.PublicLANID
+	}
 
 	if serverType == "CUBE" {
 		templateID = &i.ServerSpec.TemplateID
@@ -265,33 +269,29 @@ func (i *InstanceGroup) readServerData(index int) compute.Server {
 		storageSize = &i.ServerSpec.StorageSize
 	}
 
-	// TODO -- Remove this, this is used only because it's required for public images
-	imagePassword := "randompassword123"
-
 	serverData = compute.Server{
 		Entities: &compute.ServerEntities{
 			Volumes: &compute.AttachedVolumes{
 				Items: &[]compute.Volume{
 					{
 						Properties: &compute.VolumeProperties{
-							Image:         &i.ServerSpec.Image,
-							Type:          &volumeType,
-							UserData:      &userdata,
-							Size:          storageSize,
-							ImagePassword: &imagePassword,
+							Image:    &i.ServerSpec.Image,
+							Type:     &volumeType,
+							UserData: &userdata,
+							Size:     storageSize,
 						},
 					},
 				},
 			},
 			Nics: &compute.Nics{
 				Items: &[]compute.Nic{
-					//{
-					//	Properties: &compute.NicProperties{
-					//		Name:           StrPtr("publicNIC"),
-					//		Lan:            &publicLANID,
-					//		FirewallActive: BoolPtr(false),
-					//	},
-					//},
+					{
+						Properties: &compute.NicProperties{
+							Name:           StrPtr("publicNIC"),
+							Lan:            publicLANID,
+							FirewallActive: BoolPtr(false),
+						},
+					},
 					{
 						Properties: &compute.NicProperties{
 							Name:           StrPtr("privateNIC"),
