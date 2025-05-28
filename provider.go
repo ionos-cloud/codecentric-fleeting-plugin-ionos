@@ -18,17 +18,18 @@ import (
 type ServerSpec struct {
 	// The user data currently needs to add the ssh key to the user cause the api does not allow to add a ssh key to a private image...
 	// cherry on top: would be nice if you could pass the name of the image instead of the id -- this is not possible, the name of the image is not unique
-	Cores        int32   `json:"cores"`
-	Image        string  `json:"image,omitempty"`
-	Name         string  `json:"name"`
-	LanID        int32   `json:"lan_id"`
-	Ram          int32   `json:"ram"`
-	StorageSize  float32 `json:"storage_size"`
-	TemplateID   string  `json:"template_id"`
-	TemplateName string  `json:"template_name"`
-	Type         string  `json:"type"`
-	UserData     string  `json:"user_data,omitempty"`
-	VolumeType   string  `json:"volume_type"`
+	Cores         int32   `json:"cores"`
+	Image         string  `json:"image,omitempty"`
+	ImagePassword string  `json:"image_password"`
+	Name          string  `json:"name"`
+	LanID         int32   `json:"lan_id"`
+	Ram           int32   `json:"ram"`
+	StorageSize   float32 `json:"storage_size"`
+	TemplateID    string  `json:"template_id"`
+	TemplateName  string  `json:"template_name"`
+	Type          string  `json:"type"`
+	UserData      string  `json:"user_data,omitempty"`
+	VolumeType    string  `json:"volume_type"`
 }
 
 var _ provider.InstanceGroup = (*InstanceGroup)(nil)
@@ -227,6 +228,7 @@ func (i *InstanceGroup) validateConfig() error {
 func (i *InstanceGroup) getPostServerData(index int) compute.Server {
 	var serverData compute.Server
 	var cores, ram *int32
+	var imagePassword *string
 	var storageSize *float32
 	var templateID *string
 
@@ -246,16 +248,23 @@ func (i *InstanceGroup) getPostServerData(index int) compute.Server {
 		storageSize = &i.ServerSpec.StorageSize
 	}
 
+	// When using public images, image password or SSH key is required at server creation, this
+	// can be removed in the future if only private images will be used.
+	if i.ServerSpec.ImagePassword != "" {
+		imagePassword = &i.ServerSpec.ImagePassword
+	}
+
 	serverData = compute.Server{
 		Entities: &compute.ServerEntities{
 			Volumes: &compute.AttachedVolumes{
 				Items: &[]compute.Volume{
 					{
 						Properties: &compute.VolumeProperties{
-							Image:    &i.ServerSpec.Image,
-							Type:     &volumeType,
-							UserData: &userdata,
-							Size:     storageSize,
+							Image:         &i.ServerSpec.Image,
+							Type:          &volumeType,
+							UserData:      &userdata,
+							Size:          storageSize,
+							ImagePassword: imagePassword,
 						},
 					},
 				},
