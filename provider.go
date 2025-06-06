@@ -189,6 +189,19 @@ func (i *InstanceGroup) Decrease(ctx context.Context, instances []string) ([]str
 	return succeeded, err
 }
 
+// Heartbeat implements provider.InstanceGroup.
+func (i *InstanceGroup) Heartbeat(ctx context.Context, instance string) error {
+	_, apiResponse, err := i.computeClient.ServersApi.DatacentersServersFindById(ctx, i.DatacenterId, instance).Execute()
+	if err != nil {
+		if apiResponse.HttpNotFound() {
+			return fmt.Errorf("instance %v does not exist", instance)
+		} else {
+			return fmt.Errorf("error retrieving instance %v: %w", instance, err)
+		}
+	}
+	return nil
+}
+
 // Shutdown implements provider.InstanceGroup.
 func (i *InstanceGroup) Shutdown(ctx context.Context) error {
 	return nil

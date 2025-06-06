@@ -85,8 +85,8 @@ github.com/stretchr/testify v1.10.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf
 github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde h1:AMNpJRc7P+GTwVbl8DkK2I9I8BBUzNiHuH/tlxrpan0=
 github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde/go.mod h1:MvrEmduDUz4ST5pGZ7CABCnOU5f3ZiOAZzT6b1A6nX8=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
-gitlab.com/gitlab-org/fleeting/fleeting v0.0.0-20250331223446-30f1dda488b1 h1:xwDj9H3qQlwEW3EijTXcodfzh1kqYQuFUgbtYj1FmJw=
-gitlab.com/gitlab-org/fleeting/fleeting v0.0.0-20250331223446-30f1dda488b1/go.mod h1:OsXzbzavwzLlPVwNEhPHtMnd4qCMABf2jDH3JGVQifA=
+gitlab.com/gitlab-org/fleeting/fleeting v0.0.0-20250515220645-60977cd575cd h1:gefFvObvG0ze800fEL5WEGb69UxqqhhsmZRupf6WOWs=
+gitlab.com/gitlab-org/fleeting/fleeting v0.0.0-20250515220645-60977cd575cd/go.mod h1:OsXzbzavwzLlPVwNEhPHtMnd4qCMABf2jDH3JGVQifA=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/crypto v0.0.0-20210921155107-089bfa567519/go.mod h1:GvvjBRRGRdwPK5ydBHafDWAxML/pGHZbMvKqRZ5+Abc=
 golang.org/x/crypto v0.36.0 h1:AnAEvhDddvBdpY+uR+MyHmuZzzNqXSe/GvuDeob5L34=
