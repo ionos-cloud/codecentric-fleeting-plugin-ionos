@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/codecentric/fleeting-plugin-ionos.git"
+	"github.com/codecentric/fleeting-plugin-ionos"
 	"github.com/hashicorp/go-hclog"
 	"gitlab.com/gitlab-org/fleeting/fleeting/provider"
 )

@@ -8,7 +8,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 
-	"github.com/codecentric/fleeting-plugin-ionos.git"
+	"github.com/codecentric/fleeting-plugin-ionos"
 	"gitlab.com/gitlab-org/fleeting/fleeting/provider"
 )
 
