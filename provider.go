@@ -40,6 +40,7 @@ type InstanceGroup struct {
 	CredentialsFile string     `json:"credentials_file"`
 	Name            string     `json:"name"`
 	DatacenterId    string     `json:"datacenter_id"`
+	Token           string     `json:"ionos_token"`
 	ServerSpec      ServerSpec `json:"server_spec"`
 
 	log             hclog.Logger
@@ -51,7 +52,8 @@ type InstanceGroup struct {
 
 // Init implements provider.InstanceGroup.
 func (i *InstanceGroup) Init(ctx context.Context, logger hclog.Logger, settings provider.Settings) (provider.ProviderInfo, error) {
-	cfg := shared.NewConfigurationFromEnv()
+	cfg := shared.NewConfiguration("", "", i.Token, "")
+
 	computeClient := compute.NewAPIClient(cfg)
 
 	i.computeClient = *computeClient
@@ -146,7 +148,7 @@ func (i *InstanceGroup) Update(ctx context.Context, fn func(instance string, sta
 	for _, instance := range *instances.Items {
 		state := *instance.Metadata.State
 
-		if !strings.HasPrefix(*instance.Properties.Name, "gitlab-runner-cluster") {
+		if !strings.HasPrefix(*instance.Properties.Name, i.ServerSpec.Name) {
 			continue
 		}
 
