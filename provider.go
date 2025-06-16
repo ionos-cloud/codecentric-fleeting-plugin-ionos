@@ -191,6 +191,7 @@ func (i *InstanceGroup) Decrease(ctx context.Context, instances []string) ([]str
 
 // Heartbeat implements provider.InstanceGroup.
 func (i *InstanceGroup) Heartbeat(ctx context.Context, instance string) error {
+	i.log.Info("================== HEARTBEAT ==================")
 	_, apiResponse, err := i.computeClient.ServersApi.DatacentersServersFindById(ctx, i.DatacenterId, instance).Execute()
 	if err != nil {
 		if apiResponse.HttpNotFound() {
