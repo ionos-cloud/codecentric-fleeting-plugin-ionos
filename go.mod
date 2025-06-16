@@ -6,7 +6,7 @@ require (
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/ionos-cloud/sdk-go-bundle/products/compute v0.1.0
 	github.com/ionos-cloud/sdk-go-bundle/shared v0.1.4
-	gitlab.com/gitlab-org/fleeting/fleeting v0.0.0-20250331223446-30f1dda488b1
+	gitlab.com/gitlab-org/fleeting/fleeting v0.0.0-20250515220645-60977cd575cd
 )
 
 require (
