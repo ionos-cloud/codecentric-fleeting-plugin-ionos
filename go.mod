@@ -1,4 +1,4 @@
-module github.com/codecentric/fleeting-plugin-ionos.git
+module github.com/codecentric/fleeting-plugin-ionos
 
 go 1.24.1
 

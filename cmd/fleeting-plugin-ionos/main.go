@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/codecentric/fleeting-plugin-ionos.git"
+	"github.com/codecentric/fleeting-plugin-ionos"
 	"gitlab.com/gitlab-org/fleeting/fleeting/plugin"
 )
 
